@@ -20,7 +20,7 @@
 
 /** Here is the switch **/
 
-#define MODEL FULL     /* default setting: FULL */
+#define MODEL RECFAST   /* default setting: FULL */
 
 
 /*** Switch to print the spectrum (nu_Ly_alpha/2 to nu_Ly_gamma). 
@@ -53,6 +53,11 @@ If so, a smoother spectrum can be obtained by using the higher accuracy settings
 #define NSUBLYB  271
 #define NVIRT    311
 #define NDIFF    80
+
+/*** HL: Table for f(z) e+e- 100 MeV assuming RECFAST, tau for decaying dark matter ***/
+
+#define FZ_FILE "fz_ee_100MeV_recfast.dat"
+#define DM_TAU 1e25
 
 
 /**** Set of higher-accuracy parameters to use if getting the spectrum (make a smoother spectrum)****/

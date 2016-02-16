@@ -261,11 +261,14 @@ double rec_Tmss(double xe, double Tr, double H, double fHe, double fsR, double m
 /****************************************************************************************** 
 Matter temperature evolution derivative. Input and output temperatures are in KELVIN. 
 Added May 2012: when Tm = Tr, return -Tr (needed by CLASS) 
+HL: CHANGE THE EVOLUTION OF TEMPERATURE HERE!!
 ******************************************************************************************/
 
-double rec_dTmdlna(double xe, double Tm, double Tr, double H, double fHe, double fsR, double meR) {
-   return (Tr/Tm-1.<1e-10 ? -Tr : 
-          -2.*Tm + fsR*fsR/meR/meR/meR*4.91466895548409e-22*Tr*Tr*Tr*Tr*xe/(1.+xe+fHe)*(Tr-Tm)/H);
+double rec_dTmdlna(double xe, double Tm, double Tr, double H, double fHe, double fsR, double meR, double z_in, double logfzHeat, double tau) {
+   // return (Tr/Tm-1.<1e-10 ? -Tr : 
+   //        -2.*Tm + fsR*fsR/meR/meR/meR*4.91466895548409e-22*Tr*Tr*Tr*Tr*xe/(1.+xe+fHe)*(Tr-Tm)/H + (1/kBoltz)*dm_decay_inj(z_in,tau)*pow(10,logfzHeat)*2/(3*(1.+xe+fHe)*1.92102e-7*H*(1+z_in)*(1+z_in)*(1+z_in)));
+   // Not sure why the Tm = Tr, return -Tr term was needed, but Lesgourgues' version doesn't have this: https://github.com/lesgourg/class_public/blob/master/hyrec/history.c
+	return(-2.*Tm + fsR*fsR/meR/meR/meR*4.91466895548409e-22*Tr*Tr*Tr*Tr*xe/(1.+xe+fHe)*(Tr-Tm)/H + (1/kBoltz)*dm_decay_inj(z_in,tau)*pow(10,logfzHeat)*2/(3*(1.+xe+fHe)*1.92102e-7*H*(1+z_in)*(1+z_in)*(1+z_in)));
    /* Coefficient = 8 sigma_T a_r / (3 m_e c) */
    /* Here Tr, Tm are the actual (not rescaled) temperatures */
 }
@@ -325,7 +328,7 @@ iz_out is the index corresponding to z_out.
 
 double rec_xH1s_postSaha(REC_COSMOPARAMS *param, unsigned iz_out, double z_out, double xHeII_out, 
                          HRATEEFF *rate_table, TWO_PHOTON_PARAMS *twog_params,
-		         double **Dfminus_hist, double *Dfminus_Ly_hist[], double **Dfnu_hist, int *post_saha){
+		         double **Dfminus_hist, double *Dfminus_Ly_hist[], double **Dfnu_hist, int *post_saha, LOGFZ_DATA *logfzdata){
 
      double ainv, xH1sSaha, xHIISaha, dxH1sSaha_dlna, dxH1sdlna_Saha, DdxH1sdlna_DxH1s, H, T, nH, Dxe, xH1s;
    
@@ -346,12 +349,12 @@ double rec_xH1s_postSaha(REC_COSMOPARAMS *param, unsigned iz_out, double z_out, 
                          /* (partial xHII)/(partial xHeII).dxHeII/dlna */
      }
      dxH1sdlna_Saha = -rec_dxHIIdlna(MODEL, xHIISaha + xHeII_out, xHIISaha, nH, H, T, T, rate_table, twog_params, 
-                                     Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_out-param->izH0, z_out, param->fsR, param->meR);
+                                     Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_out-param->izH0, z_out, param->fsR, param->meR, logfzdata);
      Dxe            = 0.01*xH1sSaha;
      DdxH1sdlna_DxH1s = (rec_dxHIIdlna(MODEL, xHIISaha+Dxe + xHeII_out, xHIISaha+Dxe, nH, H, T, T, rate_table, twog_params, 
-                                     Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_out-param->izH0, z_out, param->fsR, param->meR)
+                                     Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_out-param->izH0, z_out, param->fsR, param->meR, logfzdata)
                        -rec_dxHIIdlna(MODEL, xHIISaha-Dxe + xHeII_out, xHIISaha-Dxe, nH, H, T, T, rate_table, twog_params, 
-                                     Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_out-param->izH0, z_out, param->fsR, param->meR))/2./Dxe; 
+                                     Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_out-param->izH0, z_out, param->fsR, param->meR, logfzdata))/2./Dxe; 
 
      xH1s = xH1sSaha + (dxH1sSaha_dlna - dxH1sdlna_Saha)/DdxH1sdlna_DxH1s;
 
@@ -371,7 +374,7 @@ there is almost no HeII left, then integrate H only)
 
 void get_rec_next2_HHe(REC_COSMOPARAMS *param, unsigned iz_in, double z_in, double Tm_in, double *xH1s, double *xHeII,
                        HRATEEFF *rate_table, TWO_PHOTON_PARAMS *twog_params, double **Dfminus_hist, double *Dfminus_Ly_hist[], double **Dfnu_hist,
-                       double *dxHIIdlna_prev,  double *dxHeIIdlna_prev, double *dxHIIdlna_prev2, double *dxHeIIdlna_prev2, int *post_saha) {
+                       double *dxHIIdlna_prev,  double *dxHeIIdlna_prev, double *dxHIIdlna_prev2, double *dxHeIIdlna_prev2, int *post_saha, LOGFZ_DATA *logfzdata) {
 
   double H, dxHeIIdlna, dxHIIdlna, TR, TM, nH, zout, ainv, xH1s_in, xHeII_in, xe_in;
 
@@ -389,13 +392,13 @@ void get_rec_next2_HHe(REC_COSMOPARAMS *param, unsigned iz_in, double z_in, doub
       TM        = kBoltz*Tm_in; 
       nH        = 1e-6*param->nH0 * ainv*ainv*ainv;
       dxHIIdlna = rec_dxHIIdlna(MODEL, xe_in, (1.-xH1s_in), nH, H, TM, TR, rate_table, twog_params, 
-                                Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_in-param->izH0, z_in, param->fsR, param->meR);
+                                Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz_in-param->izH0, z_in, param->fsR, param->meR, logfzdata);
 
       /* If Hydrogen is still close to Saha equilibrium do a post-Saha expansion for Hydrogen */  
       if(*post_saha == 1){
            zout = (1.+z_in)*exp(-DLNA)-1.; /* Redshift for the output */
           *xH1s = rec_xH1s_postSaha(param, iz_in+1, zout, *xHeII, rate_table, twog_params, 
-                                    Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, post_saha);
+                                    Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, post_saha, logfzdata);
       }
 
       /* Otherwise solve HII ODE */
@@ -417,7 +420,7 @@ Tm is given as an input (to avoid computing it twice) and fixed to quasi-equilib
 void rec_get_xe_next1_H(REC_COSMOPARAMS *param, double z_in, double xe_in, double Tm_in, double *xe_out,
                        HRATEEFF *rate_table, unsigned iz, TWO_PHOTON_PARAMS *twog_params,
 		       double **Dfminus_hist, double *Dfminus_Ly_hist[], double **Dfnu_hist,
-                       double *dxedlna_prev, double *dxedlna_prev2, int *post_saha) {
+                       double *dxedlna_prev, double *dxedlna_prev2, int *post_saha, LOGFZ_DATA *logfzdata) {
 
     double dxedlna, TR, nH, ainv, H, TM, zout;
     int model;        
@@ -431,13 +434,13 @@ void rec_get_xe_next1_H(REC_COSMOPARAMS *param, double z_in, double xe_in, doubl
     model = (iz-param->izH0 < param->nzrt || MODEL != FULL) ? MODEL : EMLA2s2p;   
 
     dxedlna = rec_dxHIIdlna(model, xe_in, xe_in, nH, H, TM, TR, rate_table, twog_params, 
-                            Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz-param->izH0, z_in, param->fsR, param->meR);    
+                            Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz-param->izH0, z_in, param->fsR, param->meR, logfzdata);    
       
     /* If close to Saha equilibrium (with xHeII = 0), do a post-Saha expansion */
     if (*post_saha == 1) {
         zout = (1.+z_in)*exp(-DLNA)-1.;    /* Redshift for the output */
         *xe_out = 1.-rec_xH1s_postSaha(param, iz+1, zout, 0., rate_table, twog_params, 
-                                       Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, post_saha);   
+                                       Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, post_saha, logfzdata);   
     }
    
     /* Otherwise evolve ODE */
@@ -457,7 +460,7 @@ May 2012: added a switch so Peebles model can be used at low redshift.
 
 void rec_get_xe_next2_HTm(int func_select, REC_COSMOPARAMS *param, double z_in, double xe_in, double Tm_in, double *xe_out, double *Tm_out,
                           HRATEEFF *rate_table, unsigned iz, TWO_PHOTON_PARAMS *twog_params, double **Dfminus_hist, double *Dfminus_Ly_hist[], 
-                          double **Dfnu_hist, double *dxedlna_prev, double *dTmdlna_prev, double *dxedlna_prev2, double *dTmdlna_prev2) {
+                          double **Dfnu_hist, double *dxedlna_prev, double *dTmdlna_prev, double *dxedlna_prev2, double *dTmdlna_prev2, LOGFZ_DATA *logfzdata) {
 
     double dxedlna, dTmdlna, TR, nH, ainv, H, TM;
     int model;    
@@ -471,9 +474,11 @@ void rec_get_xe_next2_HTm(int func_select, REC_COSMOPARAMS *param, double z_in, 
     model = (iz-param->izH0 < param->nzrt || func_select != FULL) ? func_select : EMLA2s2p;   
 
     dxedlna = rec_dxHIIdlna(model, xe_in, xe_in, nH, H, TM, TR, rate_table, twog_params, 
-                            Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz-param->izH0, z_in, param->fsR, param->meR);    
+                            Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, param->zH0, iz-param->izH0, z_in, param->fsR, param->meR, logfzdata);    
 
-    dTmdlna = rec_dTmdlna(xe_in, Tm_in, TR/kBoltz, H, param->fHe, param->fsR, param->meR);
+    double logfzHeatz_in = z_in > 1700 || z_in < 5 ? -100 : rec_interp1d(logfzdata->logrs[0],logfzdata->logrs[1]-logfzdata->logrs[0],logfzdata->logfzHeat,FZ_LEN,log10(z_in));
+
+    dTmdlna = rec_dTmdlna(xe_in, Tm_in, TR/kBoltz, H, param->fHe, param->fsR, param->meR, xe_in, logfzHeatz_in, logfzdata->tau);
                                           
     *xe_out = xe_in + DLNA * (1.25 * dxedlna - 0.25 * (*dxedlna_prev2)); 
     *Tm_out = Tm_in + DLNA * (1.25 * dTmdlna - 0.25 * (*dTmdlna_prev2));
@@ -490,7 +495,7 @@ Added May 2012: The radiation field was added as an input so it can be extracted
 ****************************************************************************************************/
 
 void rec_build_history(REC_COSMOPARAMS *param, HRATEEFF *rate_table, TWO_PHOTON_PARAMS *twog_params,
-                       double *xe_output, double *Tm_output, double **Dfnu_hist, double *Dfminus_Ly_hist[3]) {
+                       double *xe_output, double *Tm_output, double **Dfnu_hist, double *Dfminus_Ly_hist[3], LOGFZ_DATA *logfzdata) {
   
    long iz;
    double z, dxHIIdlna_prev, dxHIIdlna_prev2, dTmdlna_prev, dTmdlna_prev2, dxHeIIdlna_prev, dxHeIIdlna_prev2;
@@ -549,7 +554,7 @@ void rec_build_history(REC_COSMOPARAMS *param, HRATEEFF *rate_table, TWO_PHOTON_
 
    for(; iz<param->nz && xHeII > XHEII_MIN; iz++) {
       get_rec_next2_HHe(param, iz-1, z, Tm_output[iz-1], &xH1s, &xHeII, rate_table, twog_params, Dfminus_hist, Dfminus_Ly_hist, 
-                        Dfnu_hist, &dxHIIdlna_prev,  &dxHeIIdlna_prev, &dxHIIdlna_prev2, &dxHeIIdlna_prev2, &post_saha);
+                        Dfnu_hist, &dxHIIdlna_prev,  &dxHeIIdlna_prev, &dxHIIdlna_prev2, &dxHeIIdlna_prev2, &post_saha, logfzdata);
       xe_output[iz] = (1.-xH1s) + xHeII;
       z             = (1.+ZSTART)*exp(-DLNA*iz) - 1.;
       Tm_output[iz] = rec_Tmss(xe_output[iz], param->T0*(1.+z), rec_HubbleConstant(param, z), param->fHe, param->fsR, param->meR);       
@@ -562,7 +567,7 @@ void rec_build_history(REC_COSMOPARAMS *param, HRATEEFF *rate_table, TWO_PHOTON_
 
     for (; iz<param->nz && 1.-Tm_output[iz-1]/param->T0/(1.+z) < DLNT_MAX; iz++) {
         rec_get_xe_next1_H(param, z, xe_output[iz-1], Tm_output[iz-1], xe_output+iz, rate_table, iz-1, twog_params,
-		           Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, &dxHIIdlna_prev, &dxHIIdlna_prev2, &post_saha);
+		           Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, &dxHIIdlna_prev, &dxHIIdlna_prev2, &post_saha, logfzdata);
         z             = (1.+ZSTART)*exp(-DLNA*iz) - 1.;
         Tm_output[iz] = rec_Tmss(xe_output[iz], param->T0*(1.+z), rec_HubbleConstant(param, z), param->fHe, param->fsR, param->meR);  
     }
@@ -579,7 +584,7 @@ void rec_build_history(REC_COSMOPARAMS *param, HRATEEFF *rate_table, TWO_PHOTON_
                        && Tm_output[iz-1]/param->T0/(1.+z) > TM_TR_MIN; iz++) {
          rec_get_xe_next2_HTm(MODEL, param, z, xe_output[iz-1], Tm_output[iz-1], xe_output+iz, Tm_output+iz,
                               rate_table, iz-1, twog_params, Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist, 
-                              &dxHIIdlna_prev, &dTmdlna_prev, &dxHIIdlna_prev2, &dTmdlna_prev2);
+                              &dxHIIdlna_prev, &dTmdlna_prev, &dxHIIdlna_prev2, &dTmdlna_prev2, logfzdata);
          z = (1.+ZSTART)*exp(-DLNA*iz) - 1.;
     }
 
@@ -592,7 +597,7 @@ void rec_build_history(REC_COSMOPARAMS *param, HRATEEFF *rate_table, TWO_PHOTON_
     for(; iz<param->nz; iz++) { 
         rec_get_xe_next2_HTm(PEEBLES, param, z, xe_output[iz-1], Tm_output[iz-1], xe_output+iz, Tm_output+iz,
                               rate_table, iz-1, twog_params, Dfminus_hist, Dfminus_Ly_hist, Dfnu_hist,
-                              &dxHIIdlna_prev, &dTmdlna_prev, &dxHIIdlna_prev2, &dTmdlna_prev2);
+                              &dxHIIdlna_prev, &dTmdlna_prev, &dxHIIdlna_prev2, &dTmdlna_prev2, logfzdata);
         z = (1.+ZSTART)*exp(-DLNA*iz) - 1.;
     }
   

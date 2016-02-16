@@ -62,6 +62,20 @@ int main(void) {
 
    /* Get cosmological parameters */
    rec_get_cosmoparam(stdin, stderr, &param);
+
+   /* HL: Get f(z) parameters */
+   LOGFZ_DATA logfzdata;
+   logfzdata.logrs = create_1D_array(FZ_LEN);
+   logfzdata.logfzIon = create_1D_array(FZ_LEN);
+   logfzdata.logfzExc = create_1D_array(FZ_LEN);
+   logfzdata.logfzHeat = create_1D_array(FZ_LEN);
+   get_fz(&logfzdata, DM_TAU);
+
+   // LOGFZ_DATA logfzinterp;
+   // logfzinterp.logrs = create_1D_array(FZ_LEN);
+   // logfzinterp.logfzIon = create_1D_array(FZ_LEN);
+   // logfzinterp.logfzExc = create_1D_array(FZ_LEN);
+   // logfzinterp.logfzHeat = create_1D_array(FZ_LEN);
    
    /* allocate memory for output (only nzrt for spectrum arrays) */
    xe_output          = create_1D_array(param.nz);
@@ -74,7 +88,7 @@ int main(void) {
   
 
    /* Compute the recombination history */
-   rec_build_history(&param, &rate_table, &twog_params, xe_output, Tm_output, Dfnu_hist, Dfminus_Ly_hist);
+   rec_build_history(&param, &rate_table, &twog_params, xe_output, Tm_output, Dfnu_hist, Dfminus_Ly_hist, &logfzdata);
     
    
    /* Interpolate at the desired output redshifts */
@@ -166,6 +180,10 @@ int main(void) {
     free(Dfminus_Ly_hist[0]);
     free(Dfminus_Ly_hist[1]);
     free(Dfminus_Ly_hist[2]);
+    free(logfzdata.logfzIon);
+    free(logfzdata.logfzExc);
+    free(logfzdata.logfzHeat);
+    free(logfzdata.logrs);
 
   return(0);
 }

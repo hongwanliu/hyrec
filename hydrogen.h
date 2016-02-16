@@ -36,6 +36,16 @@
 #define mH        0.93878299831e9      /* Hydrogen atom mass in eV/c^2 */ 
 #define kBoltz    8.617343e-5          /* Boltzmann constant in eV/K */
 #define L2s1s     8.2206               /* 2s -> 1s two-photon decay rate in s^{-1} (Labzowsky et al 2005) */
+/* HL: f(z) parameters */
+#define FZ_LEN 844           
+typedef struct {
+  double *logrs;
+  double *logfzIon;
+  double *logfzExc;
+  double *logfzHeat;
+  double tau;
+}LOGFZ_DATA;
+/* HL: f(z) structure */
 
 
 
@@ -48,10 +58,14 @@ double LYA_FACT(double fsR, double meR);
 double L2s_rescaled(double fsR, double meR);
 void rescale_T(double *T, double fsR, double meR);
 
+double dm_decay_inj(double z, double tau);
+
 double xeSaha(double nH, double TR, double fsR, double meR);
 double dxeSaha_dlna(double nH, double TR, double fsR, double meR);
 double alphaB_PPB(double TM, double fsR, double meR);
-double rec_TLA_dxedlna(double xe, double nH, double H, double TM, double TR, double F, double fsR, double meR);
+//double rec_TLA_dxedlna(double xe, double nH, double H, double TM, double TR, double F, double fsR, double meR);
+double rec_TLA_dxHIIdlna(double xe, double xHII, double nH, double H, double TM, double TR, double Fudge, 
+                         double fsR, double meR, double z, LOGFZ_DATA *logfzdata);
 double xe_PostSaha_TLA(double nH, double H, double T, double F, double *Dxe, double fsR, double meR);
 
 /************* EFFECTIVE MULTI LEVEL ATOM *******************/
@@ -66,7 +80,8 @@ double xe_PostSaha_TLA(double nH, double H, double T, double F, double *Dxe, dou
 #define NTR    100                        
 #define TM_TR_MIN 0.1           /* Tm/Tr parameters */
 #define TM_TR_MAX 1.0
-#define NTM 40                       
+#define NTM 40            
+
 
 /**** Effective rate coefficients structure ****/
 typedef struct {
@@ -121,4 +136,4 @@ double rec_HMLA_2photon_dxedlna(double xe, double nH, double H, double TM, doubl
                                 double zstart, unsigned iz, double z, double fsR, double meR);
 double rec_dxHIIdlna(int model, double xe, double xHII, double nH, double H, double TM, double TR, 
                      HRATEEFF *rate_table, TWO_PHOTON_PARAMS *twog, double **Dfminus_hist, double *Dfminus_Ly_hist[], 
-                     double **Dfnu_hist, double zstart, unsigned iz, double z, double fsR, double meR);
+                     double **Dfnu_hist, double zstart, unsigned iz, double z, double fsR, double meR, LOGFZ_DATA *logfzdata);

@@ -121,6 +121,7 @@ double rec_interp1d(double x0, double dx, double *ytab, unsigned int Nx, double 
 
   /* Check if in range */
   if (dx > 0 && (x<x0 || x>x0+dx*(Nx-1))) {
+    printf("%lf \n",x);
     fprintf(stderr, "Error: rec_interp1d: x-value out of range in interpolation routine.\n");
     exit(1);
   }

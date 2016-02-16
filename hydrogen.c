@@ -50,6 +50,15 @@ double L2s_rescaled(double fsR, double meR) {     /* Rescaled two-photon decay r
 }
 
 /*****************************************************************************************************
+HL: Dark Matter Decay Injection
+*****************************************************************************************************/
+
+double dm_decay_inj(double z, double tau){
+  return 1262.39*(1+z)*(1+z)*(1+z)/tau;
+  // 1262.39 eV/cm^3 is the dark matter density today. 
+}
+
+/*****************************************************************************************************
 Temperature rescaling given fine-structure constant and electron mass, so we can use today's EI value
 *****************************************************************************************************/
 
@@ -77,10 +86,12 @@ Changes (May 2012):
 - Analytically subtract nearly-cancelling terms at high-z
 - Explicit dependence on alpha_fs and m_e now accounted for
 - Added explicit dependence on xHII, which is not necessarily equal to xe if Helium has not entirely recombined
+
+HL: Add f(z) dependence here for xe!
 ***************************************************************************************************/
 
 double rec_TLA_dxHIIdlna(double xe, double xHII, double nH, double H, double TM, double TR, double Fudge, 
-                         double fsR, double meR) {
+                         double fsR, double meR, double z, LOGFZ_DATA *logfzdata) {
 
    double RLya, alphaB_TM, alphaB_TR, four_betaB, C, s, Dxe2, DalphaB;
   
@@ -98,7 +109,12 @@ double rec_TLA_dxHIIdlna(double xe, double xHII, double nH, double H, double TM,
    Dxe2       = xe*xHII - s*(1.-xHII);    /* xe xp - xe xp[Saha eq with 1s] -- gives more compact expressions */
    DalphaB    = alphaB_TM - alphaB_TR; 
 
-   return -nH*(s*(1.-xHII)*DalphaB + Dxe2*alphaB_TM)*C/H; 
+   double logfzIonz_in = z > 1700 || z < 5 ? -100 : rec_interp1d(logfzdata->logrs[0],logfzdata->logrs[1]-logfzdata->logrs[0],logfzdata->logfzIon,FZ_LEN,log10(z));
+   double logfzExcz_in = z > 1700 || z < 5 ? -100 : rec_interp1d(logfzdata->logrs[0],logfzdata->logrs[1]-logfzdata->logrs[0],logfzdata->logfzExc,FZ_LEN,log10(z));
+   double ionRate = dm_decay_inj(z,logfzdata->tau)*pow(10,logfzIonz_in)/(H*13.6*nH);
+   double excRate = (1-C)*dm_decay_inj(z,logfzdata->tau)*pow(10,logfzExcz_in)/(H*10.2*nH);
+
+   return -nH*(s*(1.-xHII)*DalphaB + Dxe2*alphaB_TM)*C/H + ionRate + excRate; 
 
 }
 
@@ -107,7 +123,6 @@ Store tabulated temperatures and read effective MLA rates from files.
 **********************************************************************************************/
 
 void read_rates(HRATEEFF *rate_table){
-
    FILE *fA = fopen(ALPHA_FILE, "r");
    FILE *fR = fopen(RR_FILE, "r"); 
 
@@ -130,6 +145,21 @@ void read_rates(HRATEEFF *rate_table){
    fclose(fR);
 }
 
+/************************************************************************************************
+HL: f(z) for 100 MeV e+e- assuming RECFAST, stored in fz_ee_100MeV_recfast.dat. 
+The global variable, found in hyrec_params.h, is FZ_FILE, and the length of the array is stored
+in hydrogen.h under FZ_LEN.
+************************************************************************************************/
+void get_fz(LOGFZ_DATA *logfzdata, double tau){
+  FILE *fz_table = fopen("fz_ee_100MeV_recfast.dat", "r");
+  unsigned  i;
+  for (i=0; i < FZ_LEN; ++i) {
+    fscanf(fz_table,"%lf,%lf,%lf,%lf",&logfzdata->logrs[i],&logfzdata->logfzIon[i],&logfzdata->logfzExc[i],&logfzdata->logfzHeat[i]);
+    logfzdata->logrs[i] = log10(logfzdata->logrs[i]);
+    }
+  logfzdata->tau = tau;
+  fclose(fz_table);
+}
 /************************************************************************************************
 Interpolation of tabulated effective rates
 To be more (slightly) efficient, not using the external interpolation routine.
@@ -725,6 +755,8 @@ Modified May 2012:
 - now use the photon distortion instead of absolute photon occupation number
 - Accounts for explicit dependence on alpha_fs and m_e
 - Added Dfnu_hist as a variable. Will contain the *average* distortion within each bin
+
+HL: Add f(z) here for full model!
 ******************************************************************************************************************/
 
 double rec_HMLA_2photon_dxHIIdlna(double xe, double xHII, double nH, double H, double TM, double TR, 
@@ -815,10 +847,10 @@ use full radiative transfer equations, otherwise just use the simple EMLA.
 
 double rec_dxHIIdlna(int model, double xe, double xHII, double nH, double H, double TM, double TR, 
                      HRATEEFF *rate_table, TWO_PHOTON_PARAMS *twog, double **Dfminus_hist, double *Dfminus_Ly_hist[], 
-                     double **Dfnu_hist, double zstart, unsigned iz, double z, double fsR, double meR){
+                     double **Dfnu_hist, double zstart, unsigned iz, double z, double fsR, double meR, LOGFZ_DATA *logfzdata){
    
-    if      (model == PEEBLES)  return rec_TLA_dxHIIdlna(xe, xHII, nH, H, TM, TR, 1.00, fsR, meR);
-    else if (model == RECFAST)  return rec_TLA_dxHIIdlna(xe, xHII, nH, H, TM, TR, 1.14, fsR, meR);
+    if      (model == PEEBLES)  return rec_TLA_dxHIIdlna(xe, xHII, nH, H, TM, TR, 1.00, fsR, meR, z, logfzdata);
+    else if (model == RECFAST)  return rec_TLA_dxHIIdlna(xe, xHII, nH, H, TM, TR, 1.14, fsR, meR, z, logfzdata);
     else if (model == EMLA2s2p) return rec_HMLA_dxHIIdlna(xe, xHII, nH, H, TM, TR, rate_table, fsR, meR);
     else if (model == FULL)     return rec_HMLA_2photon_dxHIIdlna(xe, xHII, nH, H, TM, TR, rate_table, twog, Dfminus_hist,  
                                                                   Dfminus_Ly_hist, Dfnu_hist, zstart, iz, z, fsR, meR);
